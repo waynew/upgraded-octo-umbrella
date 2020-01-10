@@ -1,0 +1,5 @@
+.cache/
+*.sw[a-p]
+*.pyc
+build/
+dist/
