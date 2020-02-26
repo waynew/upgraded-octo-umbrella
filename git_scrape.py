@@ -139,25 +139,64 @@ def get_em_all(*, owner, reponame, auth):
 
 
 def show_report(*, issues):
-    total_issues = len(issues)
+    total_issues = 0
     min_lead_time = datetime.max - datetime.min
     max_lead_time = timedelta(hours=0)
     total_lead_time = timedelta(hours=0)
+    total_with_open_lead_time = timedelta(hours=0)
+    total_with_open_issues = 0
+    min_lead = None
+    max_lead = None
+    skipped_count = 0
+    statii = set()
     for issue in issues:
+        statii.add(issue["state"])
+        if "stale" in issue["labels"] or issue["number"] in (
+            7570,
+            29756,
+            28828,
+            11573,
+            31252,
+        ):
+            skipped_count += 1
+            continue
+        create_timestamp = datetime.strptime(
+            issue["created_timestamp"], "%Y-%m-%dT%H:%M:%SZ",
+        )
+        if create_timestamp < datetime.now() - timedelta(days=100):
+            skipped_count += 1
+            continue
+        close_timestamp = (
+            datetime.strptime(issue["closed_timestamp"], "%Y-%m-%dT%H:%M:%SZ",)
+            if issue["closed_timestamp"]
+            else datetime.now()
+        )
+        lead_time = close_timestamp - create_timestamp
+
+        if lead_time < timedelta(hours=1):
+            skipped_count += 1
+            continue
+
+        total_with_open_issues += 1
         if issue["is_closed"]:
-            create_timestamp = datetime.strptime(
-                issue["created_timestamp"], "%Y-%m-%dT%H:%M:%SZ",
-            )
-            close_timestamp = datetime.strptime(
-                issue["closed_timestamp"], "%Y-%m-%dT%H:%M:%SZ",
-            )
-            lead_time = close_timestamp - create_timestamp
+            total_issues += 1
             total_lead_time += lead_time
             max_lead_time = max((max_lead_time, lead_time))
+            if max_lead_time == lead_time:
+                max_lead = issue
             min_lead_time = min((min_lead_time, lead_time))
-    print("Average lead time:", total_lead_time / len(issues))
-    print("Max Lead Time:", max_lead_time)
-    print("Min Lead Time:", min_lead_time)
+            if min_lead_time == lead_time:
+                min_lead = issue
+        else:
+            lead_time = datetime.now() - create_timestamp
+        total_with_open_lead_time += lead_time
+
+    print(statii)
+    print(f"Skipped {skipped_count}/{len(issues)}")
+    print("Average lead time:", total_with_open_lead_time / total_with_open_issues)
+    print("Average lead time (completed):", total_lead_time / total_issues)
+    print("Max Lead Time:", max_lead_time, max_lead["number"], max_lead["title"])
+    print("Min Lead Time:", min_lead_time, min_lead["number"], min_lead["title"])
 
 
 def load_auth():
